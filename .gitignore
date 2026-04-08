@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Claude harness data
+.claude/
+
+# TouchDesigner numbered backup files (canonical .toe is the source of truth;
+# git provides the version history)
+*.[0-9]*.toe
+
+# TouchDesigner Backup folder (incremental auto-backups, can grow large)
+Backup/
+
+# TouchDesigner editor lock / crash files
+*.toe.~*
+*.toe-shm
+*.toe-wal
