@@ -127,9 +127,8 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 
 | Callback | Trigger | Extra info |
 |---|---|---|
-| `onSongLoaded(info)` | `song/loaded` 0 → 1 | Look up details in `metadata_table` |
+| `onSongLoaded(info)` | `song/loaded` 0 → 1 (deferred by `Messagedeferwindow` s) | `title`, `artist`, `album`, `genre`, `key`, `duration` snapshotted in `info` |
 | `onSongCleared(info)` | `song/loaded` 1 → 0 | — |
-| `onSongMetadata(info)` | Any song metadata field changes | `field`, `value` |
 
 ### Loop
 
@@ -142,7 +141,7 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 
 | Callback | Trigger | Extra info |
 |---|---|---|
-| `onFxActive(info)` | `fx/<slot>/active` 0 → 1 | `slot` |
+| `onFxActive(info)` | `fx/<slot>/active` 0 → 1 | `slot`, `type` (str \| None — last-known FX name) |
 | `onFxInactive(info)` | `fx/<slot>/active` 1 → 0 | `slot` |
 | `onFxTypeChanged(info)` | `fx/<slot>/type` changes | `slot`, `type` |
 

@@ -15,3 +15,6 @@ Backup/
 *.toe.~*
 *.toe-shm
 *.toe-wal
+
+# Captured OSC traffic (runtime artifacts, can grow into hundreds of MB)
+logs/
