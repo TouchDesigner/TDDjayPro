@@ -165,3 +165,6 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 | EQ | `turntable<N>/eq/<low|mid|high>` | Per-turntable, three bands |
 | Album art | TBD | HTTP fetch, file path, or base64 — transport not yet decided |
 | Dump request | TBD | Inbound OSC trigger; djay Pro broadcasts full state in response |
+| Cues / hotcues | TBD | Currently not emitted at all (verified empirically — see [QUIRKS.md](QUIRKS.md)) |
+
+For a running list of djay Pro emission quirks discovered through testing, see [QUIRKS.md](QUIRKS.md).
