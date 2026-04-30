@@ -1,11 +1,9 @@
 # djay Pro ⇄ TouchDesigner Interface Spec
 
-**Status:** Living draft. Authored alongside the simulator (`/djay_pro_simulator`)
-and input component (`/djay_pro_in`) in `TDDjayPro.5.toe`. Decisions land here as
-they're locked in. The .toe is the executable reference; this doc is its
-handover form.
+**Status:** A living draft. Authored alongside the simulator (`/djay_pro_simulator`)
+and input component (`/djay_pro_in`) in `TDDjayPro.toe`. 
 
-**Goal:** Define how djay Pro publishes its state and how clients
+**Goal:** Define how DJay Pro publishes its state and how clients
 (TouchDesigner, standalone apps, etc.) consume it. Hackathon participants
 should never read this — they grab a component and see channels, callbacks,
 and parameters. This doc is for the people implementing on the djay Pro side
@@ -27,7 +25,7 @@ Three transports, each playing to its strengths:
 **Streams and events share the OSC port.** TouchDesigner's `oscinCHOP` and `oscinDAT` can bind the same UDP port simultaneously, each filtering on its own **Address Scope**. We split them by top-level namespace: `/deck/*` and `/main/*` (numeric streams) vs `/event/*` (discrete events). One port, two filters, no conflict.
 
 **Why three?**
-- OSC streams are unbeatable for "value at every frame" data.
+- OSC streams are ideal for "value at every frame" data.
 - JSON over TCP carries the things OSC is bad at: strings, structured records, cold-start snapshots.
 - HTTP serves bytes the other two transports can't comfortably carry (image blobs) and hosts the OSCquery schema for self-describing discovery.
 
