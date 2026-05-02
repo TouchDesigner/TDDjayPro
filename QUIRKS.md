@@ -8,6 +8,8 @@ Each entry includes a log timestamp / file so it's reproducible.
 | Domain | Status | Notes |
 |---|---|---|
 | **Cues / hotcues** | Not emitted | Interacting with cues in the UI produces zero OSC traffic. `unknown_addresses` is empty after extensive cue use. |
+| **User-defined labels / names** | Not emitted | Anything the user types inside djay Pro (cue labels, hot-cue names, custom tags, named loops, etc.) does not cross the OSC boundary. Verified by labelling features distinctively and grepping all logs — no match. The only strings djay Pro emits are track metadata it pulls from the file (title/artist/album/genre) and built-in FX type names. |
+| **`/djay/request/dumpAll`** | Receives but doesn't respond (TestFlight build, 2026-05-01) | The inbound listener decodes the message — Console.app shows `got OSC message <private> (null)` — but no state burst follows on the configured outbound target. Tested with multiple arg variants (no args, `,i 1`, `,f 1.0`) and address-path variants, all silently accepted, none responded. The binary has `_dumpAllRateLimit` and `ARRateLimitTimer` symbols so rate-limiting is wired in; ~20+ probes during testing may have tripped it, or the response handler may not yet be hooked up despite the doc claiming the feature lands. Algoriddim contacted for confirmation. Until resolved, don't rely on dumpAll for cold-start sync — keep treating unseen addresses as `0` in dispatcher edge detection. |
 | **EQ (low/mid/high)** | Not emitted | Confirmed planned by Algoriddim. |
 | **Album art** | Not emitted | Planned; transport (URL / file path / base64) TBD. |
 | **State dump on demand** | Not available | No way to ask "what's the current state?" — must wait for the next change. Planned. |

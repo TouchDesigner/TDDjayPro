@@ -20,11 +20,11 @@ from typing import List, Any
 
 # String-bearing addresses — not in the numeric float tables.
 _STRING_PATTERNS = [
-    'djayPro/turntable*/song/title',
-    'djayPro/turntable*/song/artist',
-    'djayPro/turntable*/song/album',
-    'djayPro/turntable*/song/genre',
-    'djayPro/turntable*/fx/*/type',
+    'djay/turntable*/song/title',
+    'djay/turntable*/song/artist',
+    'djay/turntable*/song/album',
+    'djay/turntable*/song/genre',
+    'djay/turntable*/fx/*/type',
 ]
 
 

@@ -12,8 +12,8 @@ value per slot; when djay Pro adds a state-dump capability, the response
 will populate this cache the same way per-event updates do.
 
 Addresses handled:
-  /djayPro/turntable<N>/song/{title,artist,album,genre,key,duration}
-  /djayPro/turntable<N>/fx/<slot>/type
+  /djay/turntable<N>/song/{title,artist,album,genre,key,duration}
+  /djay/turntable<N>/fx/<slot>/type
 
 Callbacks:
   onFxTypeChanged(info)   info: turntable, slot, type
@@ -39,7 +39,7 @@ def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
                  byteData: bytes, timeStamp: float, address: str,
                  args: List[Any], peer: Peer):
     parts = address.split('/')[1:]
-    if len(parts) < 4 or parts[0] != 'djayPro' or not parts[1].startswith('turntable'):
+    if len(parts) < 4 or parts[0] != 'djay' or not parts[1].startswith('turntable'):
         return
     if not args:
         return

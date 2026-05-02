@@ -1,7 +1,7 @@
 ﻿"""
 Mirrors oscin_chan_state CHOP into /djayPro/state_table.
 
-Channel name format: djayPro/turntable<N>/<category>/<field>
+Channel name format: djay/turntable<N>/<category>/<field>
 We only care about playback/playing and song/loaded — those are the two
 state booleans in our taxonomy.
 """

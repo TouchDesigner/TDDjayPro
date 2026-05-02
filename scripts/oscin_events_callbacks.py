@@ -108,8 +108,8 @@ def _classify(address: str):
     cancel a pending deferred callback when a counter-transition arrives.
     Returns None for addresses we don't dispatch on.
     """
-    parts = address.split('/')[1:]   # ['djayPro', 'turntable1', 'song', 'loaded']
-    if len(parts) < 4 or parts[0] != 'djayPro' or not parts[1].startswith('turntable'):
+    parts = address.split('/')[1:]   # ['djay', 'turntable1', 'song', 'loaded']
+    if len(parts) < 4 or parts[0] != 'djay' or not parts[1].startswith('turntable'):
         return None
     turntable = parts[1].replace('turntable', '')
     cat = parts[2]
@@ -122,7 +122,7 @@ def _classify(address: str):
         return 'onLoopSet', 'onLoopClear', 'loop', {'turntable': turntable}
     if cat == 'fx' and len(parts) >= 5 and parts[4] == 'active':
         return 'onFxActive', 'onFxInactive', f'fx{parts[3]}', {'turntable': turntable, 'slot': parts[3]}
-    if cat == 'stems' and len(parts) >= 5:
+    if cat == 'neuralmix' and len(parts) >= 5:
         stem, action = parts[3], parts[4]
         if action == 'mute':
             return 'onStemMute', 'onStemUnmute', f'stem-mute-{stem}', {'turntable': turntable, 'stem': stem}
