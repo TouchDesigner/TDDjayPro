@@ -7,12 +7,19 @@ djay POSTs the artwork as the request body when given a URL via OSC:
 
 URI scheme: POST /artwork/<N>  (N in 1..4)  -> writes <project>/cache/artwork_<N>.jpg
 Anything else returns 404. WebSocket callbacks are inert.
+
+Empty-body quirk: djay sometimes POSTs a 0-byte body when a deck is
+loaded but has no art (or art isn't ready yet). We treat that as a
+clear and stamp the cache file with assets/black.jpg (1x1 black) so
+the moviefileinTOP never sees an invalid empty JPEG.
 """
+import shutil
 from pathlib import Path
 from typing import Any, Dict
 
 
 VALID_TURNTABLES = {'1', '2', '3', '4'}
+BLACK_JPEG = 'assets/black.jpg'
 
 
 def _cache_dir() -> Path:
@@ -51,8 +58,20 @@ def onHTTPRequest(dat: 'webserverDAT', request: Dict[str, Any],
         body = body.encode('latin-1')
 
     out = _cache_dir() / f'artwork_{n}.jpg'
-    out.write_bytes(body)
-    debug(f'webserver1: wrote artwork tt{n} ({len(body)}B) -> {out}')
+    cleared = False
+    if len(body) == 0:
+        # djay POSTed empty — stamp with the black asset instead of writing
+        # a 0-byte file (moviefileinTOP can't decode that).
+        src = Path(project.folder) / BLACK_JPEG
+        if src.exists():
+            shutil.copyfile(src, out)
+            cleared = True
+            debug(f'webserver1: empty POST tt{n} -> stamped black')
+        else:
+            debug(f'webserver1: empty POST tt{n} but {BLACK_JPEG} missing; skipping write')
+    else:
+        out.write_bytes(body)
+        debug(f'webserver1: wrote artwork tt{n} ({len(body)}B) -> {out}')
 
     mfi = op(f'/djayPro/artwork_{n}')
     if mfi is not None:
@@ -60,11 +79,11 @@ def onHTTPRequest(dat: 'webserverDAT', request: Dict[str, Any],
 
     target = op('/djayPro')
     if target is not None and hasattr(target, 'DoCallback'):
-        target.DoCallback('onArtworkReady', {
-            'turntable': n,
-            'path': str(out),
-            'bytes': len(body),
-        })
+        callback = 'onArtworkCleared' if cleared else 'onArtworkReady'
+        info = {'turntable': n, 'path': str(out)}
+        if not cleared:
+            info['bytes'] = len(body)
+        target.DoCallback(callback, info)
 
     response['statusCode'] = 200
     response['statusReason'] = 'OK'
