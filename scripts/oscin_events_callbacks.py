@@ -26,7 +26,19 @@ will actually fire — that's what installs DoCallback on /djayPro. Until then
 the dispatcher runs but no-ops at the call site.
 """
 
+import shutil
+from pathlib import Path
 from typing import List, Any, Callable
+
+
+# Where djay should POST artwork bytes — points at /djayPro/webserver1.
+_ARTWORK_HOST = '127.0.0.1'
+_ARTWORK_PORT = 9988
+
+# Black-frame asset used to clear cached artwork when a deck reports
+# artworkAvailable=0 (track unloaded / no art). Generated once via
+# tools/regen_black_jpg or a constantTOP+save round-trip.
+_BLACK_JPEG = 'assets/black.jpg'
 
 
 # Last seen value per OSC address. Backed by op.store on /djayPro so the
@@ -150,9 +162,67 @@ def _fire_deferred(callback_name: str, info: dict, key: str):
     _fire(callback_name, info)
 
 
+def _handle_artwork_available(address: str, args: List[Any]) -> bool:
+    """Plumbing for /djay/turntable<N>/song/artworkAvailable.
+
+    Value 1: ask djay to POST the JPEG to webserver1; the user-visible
+    onArtworkReady fires from webserver1_callbacks after the bytes land.
+    Value 0: stamp the deck's cache file with the 1x1 black asset and
+    fire onArtworkCleared so downstream Movie File In TOPs go black.
+
+    Returns True for any artworkAvailable address so the regular
+    classify+dispatch path skips it (no user event on the flag itself).
+
+    Why fire on every 1 rather than only on rising: covers the case where
+    djay broadcasts the current state (already-1) at TD connect or after a
+    script reload — without an intervening 0 there'd be no rising edge to
+    catch. The cost is a redundant request if djay ever re-emits 1 with no
+    new song behind it; harmless since djay just POSTs the same JPEG back.
+    """
+    parts = address.split('/')[1:]
+    if (len(parts) != 4 or parts[0] != 'djay'
+            or not parts[1].startswith('turntable')
+            or parts[2] != 'song' or parts[3] != 'artworkAvailable'):
+        return False
+    if not args:
+        return True
+
+    turntable = parts[1].replace('turntable', '')
+    if float(args[0]) > 0:
+        oscout = op('/djayPro/oscout1')
+        if oscout is not None:
+            url = f'http://{_ARTWORK_HOST}:{_ARTWORK_PORT}/artwork/{turntable}'
+            oscout.sendOSC(f'/djay/request/turntable{turntable}/artwork', [url])
+    else:
+        _clear_artwork(turntable)
+    return True
+
+
+def _clear_artwork(turntable: str):
+    """Stamp the deck's cache file with the 1x1 black asset and notify."""
+    src = Path(project.folder) / _BLACK_JPEG
+    dst = Path(project.folder) / 'cache' / f'artwork_{turntable}.jpg'
+    if not src.exists():
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
+    mfi = op(f'/djayPro/artwork_{turntable}')
+    if mfi is not None:
+        mfi.par.reloadpulse.pulse()
+    target = op('/djayPro')
+    if target is not None and hasattr(target, 'DoCallback'):
+        target.DoCallback('onArtworkCleared', {
+            'turntable': turntable,
+            'path': str(dst),
+        })
+
+
 def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
                  byteData: bytes, timeStamp: float, address: str,
                  args: List[Any], peer: Peer):
+    if _handle_artwork_available(address, args):
+        return
+
     classification = _classify(address)
     if classification is None or not args:
         return

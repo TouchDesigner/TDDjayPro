@@ -42,6 +42,24 @@ def onSongCleared(info: dict):
     """A turntable's track was unloaded. info['turntable']."""
     pass
 
+def onArtworkReady(info: dict):
+    """Album art for a turntable has been received and saved to disk.
+
+    Triggered when djay POSTs the JPEG to /djayPro/webserver1 after we
+    request it (we ask whenever artworkAvailable is reported as 1).
+    info: turntable ('1'..'4'), path (absolute file path str), bytes (int).
+    """
+    pass
+
+def onArtworkCleared(info: dict):
+    """Album art for a turntable was cleared (track unloaded or no art).
+
+    Fired when artworkAvailable goes 0 — the cache file gets stamped with
+    a 1x1 black JPEG so any downstream Movie File In TOP shows black.
+    info: turntable ('1'..'4'), path (absolute file path str).
+    """
+    pass
+
 
 # endregion
 
