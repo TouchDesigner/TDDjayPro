@@ -64,7 +64,7 @@ djay Pro v3 calls per-turntable stems "NeuralMix" on the wire. For each stem ∈
 
 | Address | Kind | Type | Notes |
 |---|---|---|---|
-| `neuralmix/<stem>/audibleVolume` | stream | float | Effective stem output gain, 0–2. Rolls up mute / solo / level / EQ / crossfader contributions — the "what's actually audible" signal per stem. |
+| `neuralmix/<stem>/audibleVolume` | stream | float | Stem level gated by mute, 0–2. Effectively `level × (1 − mute)` — drops to 0 when the stem is muted, otherwise tracks the knob. Does **not** include line fader, neuralmix EQ, or crossfader, despite what the v3 spec implies — see [QUIRKS.md](QUIRKS.md). |
 | `neuralmix/<stem>/level` | parameter | float | Slider value, 0–1 |
 | `neuralmix/<stem>/mute` | state | 0/1 | |
 | `neuralmix/<stem>/solo` | state | 0/1 | |

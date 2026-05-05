@@ -57,6 +57,14 @@ At track load, `song/genre` is usually `['']` (single empty string), but occasio
 
 Seen at startup broadcast (13:59:00.419 across all turntables: `song/genre []`).
 
+### `neuralmix/<stem>/audibleVolume` is `level × (1 − mute)`, not the full effective gain
+The v3 protocol doc describes this address as *"the gain applied to the stem, considering mute/solo/level/EQs and whatever other controls influence stem volume"* — implying a complete summation including channel-strip and crossfader effects. Empirically it only reflects two inputs:
+
+- **Stem level** (the per-stem volume knob, 0–2)
+- **Mute** (drops the value to 0)
+
+It does **not** factor in the channel-strip line fader, neuralmix EQ, or crossfader position. So `audibleVolume = level × (1 − mute)` on the 0–2 scale — useful as "the stem's contribution before downstream mix processing," but not as a true "what's audible at the master" signal. For that, use `mixer/turntable<N>/meter` (post-summation, pre-fader).
+
 ### FX activation carries no metadata
 `fx/<slot>/active 1.0` is a bare event — no type, no params alongside.
 
