@@ -127,7 +127,7 @@ We re-request on every `artworkAvailable=1` (not just rising edges) so a TD rest
 
 ## Sync — use Ableton Link, not OSC
 
-For tight beat / bar / phase sync, **Ableton Link is the recommended path**, not the OSC playback channels. The receiver includes an Ableton Link CHOP at `/djayPro/ableton2` that joins the local Link session — when djay Pro has Link enabled (Settings → MIDI/Link), it participates in the same session and the timing is sample-accurate and continuous.
+For tight beat / bar / phase sync, **Ableton Link is the recommended path**, not the OSC playback channels. The receiver includes an Ableton Link CHOP at `/djayPro/ableton2` that joins the local Link session — when djay Pro has Link enabled (Global Volume Settings → Ablelton Link toggle), it participates in the same session and the timing is sample-accurate and continuous.
 
 OSC's `playback/time`, `playback/phase`, and `playback/barPhase` are useful for *where in the track we are*, but they tick at packet rate (~60 Hz over UDP) and can stutter or drop under load. Use them for HUDs and read-state needs; use Link CHOP channels (`beat`, `phase`, `tempo`) when you're driving anything beat-synced visually.
 
