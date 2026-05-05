@@ -57,15 +57,6 @@ At track load, `song/genre` is usually `['']` (single empty string), but occasio
 
 Seen at startup broadcast (13:59:00.419 across all turntables: `song/genre []`).
 
-### `neuralmix/<stem>/audibleVolume` is just the knob, not an effective gain
-The v3 protocol doc describes this address as *"the gain applied to the stem, considering mute/solo/level/EQs and whatever other controls influence stem volume"* — i.e., a rolled-up post-summation gain factor. In practice it tracks the stem volume knob position on the 0–2 scale and **nothing else**:
-
-- Soloing a different stem does **not** drop the un-soloed stems' `audibleVolume` to 0 (their knob position is unchanged).
-- Crossfading away from the deck does **not** attenuate `audibleVolume`.
-- Toggling Neural Mix EQ does **not** modulate it.
-
-So `audibleVolume` is functionally a duplicate of `neuralmix/<stem>/level` on a different scale (`level` is documented 0–1, `audibleVolume` is 0–2). If you want what's *actually audible* downstream, neither address gives it — derive it yourself from level × mute × solo × crossfader position, or use `mixer/turntable<N>/meter` (which is post-summation but pre-fader).
-
 ### FX activation carries no metadata
 `fx/<slot>/active 1.0` is a bare event — no type, no params alongside.
 
