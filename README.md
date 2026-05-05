@@ -1,18 +1,20 @@
 # djay Pro ⇄ TouchDesigner
 
-A TouchDesigner receiver for djay Pro's OSC stream. Listens on a single UDP port, splits incoming traffic by purpose (streams, parameters, state, metadata, unknown), and exposes every value through three idiomatic surfaces:
+A TouchDesigner receiver for djay Pro's OSC stream. Listens on a single UDP port, splits incoming traffic by purpose (streams, parameters, state, metadata, unknown), and routes every value to one or more of:
 
 - **CHOPs** for animation-driving numeric channels
 - **Tables** for inspectable per-turntable snapshots
 - **Callbacks** for reacting to discrete state transitions
 
+Pick whichever fits how you want to consume the value — a continuous knob is most useful as a CHOP channel, a "what's loaded right now" lookup wants the table, and a state edge wants the callback.
+
 ## OSC namespace
 
-djay Pro publishes under two top-level scopes:
+djay Pro v3 publishes under two top-level scopes (note: prefix is `/djay`, not `/djayPro`):
 
 ```
-/djayPro/turntable<N>/<category>/<...>     N ∈ {1, 2, 3, 4}
-/djayPro/mixer/<...>
+/djay/turntable<N>/<category>/<...>     N ∈ {1, 2, 3, 4}
+/djay/mixer/<...>
 ```
 
 All values are floats on the wire; strings carry song metadata and FX names.
@@ -23,10 +25,10 @@ Channels are classified by how they behave, independent of namespace. This drive
 
 | Kind | Cadence | Examples | Surface |
 |---|---|---|---|
-| **stream** | per-frame (60 Hz) | `playback/time`, `song/bpm`, `stems/*/audibleVolume`, `mixer/*/meter` | CHOP only |
-| **parameter** | on user input | `stems/*/level`, `fx/*/dryWet`, `loop/inTime`, `mixer/crossfader` | CHOP + table |
-| **state** | on transition | `playback/playing`, `song/loaded`, `loop/active`, `fx/*/active`, `stems/*/mute|solo` | CHOP + table + callback |
-| **metadata** | on song load | `song/title|artist|album|genre|key|duration`, `fx/*/type` | Table + callback |
+| **stream** | per-frame (60 Hz) | `playback/time`, `song/bpm`, `neuralmix/*/audibleVolume`, `mixer/turntable<N>/meter` | CHOP only |
+| **parameter** | on user input | `neuralmix/*/level`, `fx/*/dryWet`, `loop/inTime`, `mixer/crossfader` | CHOP + table |
+| **state** | on transition | `playback/playing`, `song/loaded`, `loop/active`, `fx/*/active`, `neuralmix/*/mute\|solo` | CHOP + table + callback |
+| **metadata** | on song load | `song/title\|artist\|album\|genre\|key\|duration`, `fx/*/type` | Table + callback |
 
 ## Per-turntable channels
 
@@ -56,16 +58,24 @@ For each turntable `<N>` ∈ {1,2,3,4}:
 | `song/album` | metadata | string | |
 | `song/genre` | metadata | string | |
 
-### stems
+### neuralmix
 
-For each stem ∈ {`vocals`, `harmonic`, `drums`, `bass`}:
+djay Pro v3 calls per-turntable stems "NeuralMix" on the wire. For each stem ∈ {`vocals`, `harmonic`, `drums`, `bass`}:
 
 | Address | Kind | Type | Notes |
 |---|---|---|---|
-| `stems/<stem>/audibleVolume` | stream | float | Post-mix output meter |
-| `stems/<stem>/level` | parameter | float | Slider value, 0–1 |
-| `stems/<stem>/mute` | state | 0/1 | |
-| `stems/<stem>/solo` | state | 0/1 | |
+| `neuralmix/<stem>/audibleVolume` | stream | float | Post-mix output meter |
+| `neuralmix/<stem>/level` | parameter | float | Slider value, 0–1 |
+| `neuralmix/<stem>/mute` | state | 0/1 | |
+| `neuralmix/<stem>/solo` | state | 0/1 | |
+
+Per-turntable NeuralMix EQ (separate from the channel-strip mixer EQ below):
+
+| Address | Kind | Type | Notes |
+|---|---|---|---|
+| `neuralmix/eq/low` | parameter | float | 0–2 (1.0 = unity) |
+| `neuralmix/eq/mid` | parameter | float | 0–2 |
+| `neuralmix/eq/high` | parameter | float | 0–2 |
 
 ### loop
 
@@ -95,7 +105,25 @@ For each slot ∈ {`1`, `2`, `3`}:
 |---|---|---|---|
 | `mixer/crossfader` | parameter | float | 0–1, center = 0.5 |
 | `mixer/turntable<N>/lineFader` | parameter | float | Per-turntable channel fader |
+| `mixer/turntable<N>/eq/low` | parameter | float | 0–2 (1.0 = unity), channel-strip low band |
+| `mixer/turntable<N>/eq/mid` | parameter | float | 0–2 |
+| `mixer/turntable<N>/eq/high` | parameter | float | 0–2 |
 | `mixer/turntable<N>/meter` | stream | float | Per-turntable VU, dB scale; `-300` = no signal |
+
+## Album art
+
+JPEG bytes are too large for OSC, so djay Pro hands them over via an HTTP request/response handshake:
+
+1. djay broadcasts `/djay/turntable<N>/song/artworkAvailable 1` when art is present on a deck.
+2. `oscin_events_callbacks` replies with `/djay/request/turntable<N>/artwork http://127.0.0.1:9988/artwork/<N>` via `oscout1`.
+3. djay HTTP-POSTs the JPEG body to that URL.
+4. `webserver1` (port 9988) writes the bytes to `cache/artwork_<N>.jpg`, pulses `artwork_<N>` (a moviefileinTOP) to reload, and fires `onArtworkReady`.
+
+When the art goes away — `artworkAvailable` flips to `0`, or djay POSTs a 0-byte body — the cache file is stamped with `assets/black.jpg` (a 1×1 black seed) and `onArtworkCleared` fires, so the moviefileinTOP never shows a stale or invalid image.
+
+The four `cache/artwork_<N>.jpg` files are committed as black seeds (`git update-index --skip-worktree` is set so runtime overwrites stay out of `git status`). On a fresh clone the moviefileinTOPs come up black; once djay broadcasts state, the real art lands within a frame or two.
+
+We re-request on every `artworkAvailable=1` (not just rising edges) so a TD restart mid-session still pulls the current art without needing djay to bounce the flag.
 
 ## Reading current values
 
@@ -145,14 +173,21 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 | `onFxInactive(info)` | `fx/<slot>/active` 1 → 0 | `slot` |
 | `onFxTypeChanged(info)` | `fx/<slot>/type` changes | `slot`, `type` |
 
-### Stems
+### Stems (NeuralMix)
 
 | Callback | Trigger | Extra info |
 |---|---|---|
-| `onStemMute(info)` | `stems/<stem>/mute` 0 → 1 | `stem` |
-| `onStemUnmute(info)` | `stems/<stem>/mute` 1 → 0 | `stem` |
-| `onStemSolo(info)` | `stems/<stem>/solo` 0 → 1 | `stem` |
-| `onStemUnsolo(info)` | `stems/<stem>/solo` 1 → 0 | `stem` |
+| `onStemMute(info)` | `neuralmix/<stem>/mute` 0 → 1 | `stem` |
+| `onStemUnmute(info)` | `neuralmix/<stem>/mute` 1 → 0 | `stem` |
+| `onStemSolo(info)` | `neuralmix/<stem>/solo` 0 → 1 | `stem` |
+| `onStemUnsolo(info)` | `neuralmix/<stem>/solo` 1 → 0 | `stem` |
+
+### Album art
+
+| Callback | Trigger | Extra info |
+|---|---|---|
+| `onArtworkReady(info)` | djay POSTed JPEG bytes for a deck | `path` (cache file), `bytes` (length) |
+| `onArtworkCleared(info)` | `artworkAvailable` 1 → 0, or empty-body POST | `path` (cache file, now a copy of `assets/black.jpg`) |
 
 ## Discovery
 
@@ -160,11 +195,9 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 
 ## Roadmap (incoming from Algoriddim)
 
-| Feature | Address (predicted) | Notes |
+| Feature | Address | Notes |
 |---|---|---|
-| EQ | `turntable<N>/eq/<low|mid|high>` | Per-turntable, three bands |
-| Album art | TBD | HTTP fetch, file path, or base64 — transport not yet decided |
-| Dump request | TBD | Inbound OSC trigger; djay Pro broadcasts full state in response |
+| Dump request | `/djay/request/dumpAll` | Inbound OSC trigger; djay should broadcast full state in response. Wired but not yet honored — see [QUIRKS.md](QUIRKS.md) |
 | Cues / hotcues | TBD | Currently not emitted at all (verified empirically — see [QUIRKS.md](QUIRKS.md)) |
 
 For a running list of djay Pro emission quirks discovered through testing, see [QUIRKS.md](QUIRKS.md).
