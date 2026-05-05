@@ -9,10 +9,6 @@ Each entry includes a log timestamp / file so it's reproducible.
 |---|---|---|
 | **Cues / hotcues** | Not emitted | Interacting with cues in the UI produces zero OSC traffic. `unknown_addresses` is empty after extensive cue use. |
 | **User-defined labels / names** | Not emitted | Anything the user types inside djay Pro (cue labels, hot-cue names, custom tags, named loops, etc.) does not cross the OSC boundary. Verified by labelling features distinctively and grepping all logs — no match. The only strings djay Pro emits are track metadata it pulls from the file (title/artist/album/genre) and built-in FX type names. |
-| **`/djay/request/dumpAll`** | Receives but doesn't respond (TestFlight build, 2026-05-01) | The inbound listener decodes the message — Console.app shows `got OSC message <private> (null)` — but no state burst follows on the configured outbound target. Tested with multiple arg variants (no args, `,i 1`, `,f 1.0`) and address-path variants, all silently accepted, none responded. The binary has `_dumpAllRateLimit` and `ARRateLimitTimer` symbols so rate-limiting is wired in; ~20+ probes during testing may have tripped it, or the response handler may not yet be hooked up despite the doc claiming the feature lands. Algoriddim contacted for confirmation. Until resolved, don't rely on dumpAll for cold-start sync — keep treating unseen addresses as `0` in dispatcher edge detection. |
-| **EQ (low/mid/high)** | Not emitted | Confirmed planned by Algoriddim. |
-| **Album art** | Not emitted | Planned; transport (URL / file path / base64) TBD. |
-| **State dump on demand** | Not available | No way to ask "what's the current state?" — must wait for the next change. Planned. |
 
 ## Emission patterns
 
@@ -61,6 +57,15 @@ At track load, `song/genre` is usually `['']` (single empty string), but occasio
 
 Seen at startup broadcast (13:59:00.419 across all turntables: `song/genre []`).
 
+### `neuralmix/<stem>/audibleVolume` is just the knob, not an effective gain
+The v3 protocol doc describes this address as *"the gain applied to the stem, considering mute/solo/level/EQs and whatever other controls influence stem volume"* — i.e., a rolled-up post-summation gain factor. In practice it tracks the stem volume knob position on the 0–2 scale and **nothing else**:
+
+- Soloing a different stem does **not** drop the un-soloed stems' `audibleVolume` to 0 (their knob position is unchanged).
+- Crossfading away from the deck does **not** attenuate `audibleVolume`.
+- Toggling Neural Mix EQ does **not** modulate it.
+
+So `audibleVolume` is functionally a duplicate of `neuralmix/<stem>/level` on a different scale (`level` is documented 0–1, `audibleVolume` is 0–2). If you want what's *actually audible* downstream, neither address gives it — derive it yourself from level × mute × solo × crossfader position, or use `mixer/turntable<N>/meter` (which is post-summation but pre-fader).
+
 ### FX activation carries no metadata
 `fx/<slot>/active 1.0` is a bare event — no type, no params alongside.
 
@@ -88,9 +93,3 @@ Timestamp window: ~10ms across all 4 decks (e.g. 13:59:00.415–13:59:00.423).
 ### `parameterIsBeats` defaults differ by turntable at startup
 First broadcast: TT1 emits `parameterIsBeats 0.0`, TT2/3/4 emit `1.0`. Likely just persisted state from prior session, but worth noting if you assume a uniform default.
 
-### djay Pro must be running when TD starts (for full state)
-If TD starts mid-session, the startup broadcast was already sent — TD has no way to ask for it again (no dump capability, see top). The dispatcher mitigates this by treating unseen addresses as `0`, so a mid-session `1.0` activation still fires the rising callback.
-
-## Edge cases that aren't quirks but bit us
-
-- **Script reload wipes module-level dispatcher state.** Externalized callback DATs reload on file save. Any `_last`-style cache must be backed by `op.store` to survive — otherwise the next falling edge from a previously-`1` address gets swallowed. (Fixed in `oscin_events_callbacks.py`.)

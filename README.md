@@ -64,7 +64,7 @@ djay Pro v3 calls per-turntable stems "NeuralMix" on the wire. For each stem ∈
 
 | Address | Kind | Type | Notes |
 |---|---|---|---|
-| `neuralmix/<stem>/audibleVolume` | stream | float | Post-mix output meter |
+| `neuralmix/<stem>/audibleVolume` | stream | float | Stem volume knob position, 0–2 (0=off, 1=unity, 2=boost). The v3 spec describes this as a derived effective-gain factoring in mute/solo/EQ/crossfader, but empirically it just mirrors the knob — see [QUIRKS.md](QUIRKS.md). |
 | `neuralmix/<stem>/level` | parameter | float | Slider value, 0–1 |
 | `neuralmix/<stem>/mute` | state | 0/1 | |
 | `neuralmix/<stem>/solo` | state | 0/1 | |
@@ -108,7 +108,7 @@ For each slot ∈ {`1`, `2`, `3`}:
 | `mixer/turntable<N>/eq/low` | parameter | float | 0–2 (1.0 = unity), channel-strip low band |
 | `mixer/turntable<N>/eq/mid` | parameter | float | 0–2 |
 | `mixer/turntable<N>/eq/high` | parameter | float | 0–2 |
-| `mixer/turntable<N>/meter` | stream | float | Per-turntable VU, dB scale; `-300` = no signal |
+| `mixer/turntable<N>/meter` | stream | float | Per-turntable VU, **dB scale** (pre-fader, post-processing). `-300` = silence floor, `0` = start of "red" / clip warning (not the ceiling), up to `+24` and beyond in headroom. |
 
 ## Album art
 
@@ -124,6 +124,14 @@ When the art goes away — `artworkAvailable` flips to `0`, or djay POSTs a 0-by
 The four `cache/artwork_<N>.jpg` files are committed as black seeds (`git update-index --skip-worktree` is set so runtime overwrites stay out of `git status`). On a fresh clone the moviefileinTOPs come up black; once djay broadcasts state, the real art lands within a frame or two.
 
 We re-request on every `artworkAvailable=1` (not just rising edges) so a TD restart mid-session still pulls the current art without needing djay to bounce the flag.
+
+## Sync — use Ableton Link, not OSC
+
+For tight beat / bar / phase sync, **Ableton Link is the recommended path**, not the OSC playback channels. The receiver includes an Ableton Link CHOP at `/djayPro/ableton2` that joins the local Link session — when djay Pro has Link enabled (Settings → MIDI/Link), it participates in the same session and the timing is sample-accurate and continuous.
+
+OSC's `playback/time`, `playback/phase`, and `playback/barPhase` are useful for *where in the track we are*, but they tick at packet rate (~60 Hz over UDP) and can stutter or drop under load. Use them for HUDs and read-state needs; use Link CHOP channels (`beat`, `phase`, `tempo`) when you're driving anything beat-synced visually.
+
+Rule of thumb: **OSC for *what* is loaded / playing, Link for *when* the next beat lands.**
 
 ## Reading current values
 
@@ -193,11 +201,17 @@ Common keys: `info['ownerComp']`, `info['callbackName']`, `info['turntable']`.
 
 `oscin_unknown` listens for any address not in the known scope and logs it to `unknown_addresses` with a count and last-seen args. New addresses surface here automatically — useful when djay Pro adds something we haven't catalogued.
 
+## Limitations
+
+A few things djay Pro doesn't expose over OSC today (verified empirically — see [QUIRKS.md](QUIRKS.md)):
+
+- **Cues / hotcues** — interacting with cue points produces no OSC traffic. There's no way to read cue positions, react to a cue jump, or know which hot-cues are set on a deck. Plan around it (e.g. drive cue-aware visuals from playback time, not cue events).
+- **User-defined labels** — anything typed inside djay Pro (custom cue labels, named loops, tags) doesn't cross the OSC boundary. Only file-derived metadata (title/artist/album/genre) and built-in FX type names come through as strings.
+
 ## Roadmap (incoming from Algoriddim)
 
 | Feature | Address | Notes |
 |---|---|---|
-| Dump request | `/djay/request/dumpAll` | Inbound OSC trigger; djay should broadcast full state in response. Wired but not yet honored — see [QUIRKS.md](QUIRKS.md) |
-| Cues / hotcues | TBD | Currently not emitted at all (verified empirically — see [QUIRKS.md](QUIRKS.md)) |
+| Dump request | `/djay/request/dumpAll` | Inbound OSC trigger that asks djay to re-broadcast its full current state. Coming in a future build. |
 
 For a running list of djay Pro emission quirks discovered through testing, see [QUIRKS.md](QUIRKS.md).
