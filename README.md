@@ -8,6 +8,13 @@ A TouchDesigner receiver for djay Pro's OSC stream. Listens on a single UDP port
 
 Pick whichever fits how you want to consume the value — a continuous knob is most useful as a CHOP channel, a "what's loaded right now" lookup wants the table, and a state edge wants the callback.
 
+## Installation
+
+Using DJjay Pro main menu access, the Settings dialog. In the advanced section ensure the Target Port is set to 10000 and the Listen Port is set to 10001. Click the Start button.
+
+<img width="642" height="97" alt="Screenshot 2026-05-05 at 12 52 51 PM" src="https://github.com/user-attachments/assets/13b24153-9eb4-479e-b9cd-2afb63c46d27" />
+
+
 ## OSC namespace
 
 djay Pro v3 publishes under two top-level scopes (note: prefix is `/djay`, not `/djayPro`):
