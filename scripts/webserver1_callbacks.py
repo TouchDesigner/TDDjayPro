@@ -6,6 +6,10 @@ djay POSTs the artwork as the request body when given a URL via OSC:
   /djay/request/turntable<N>/artwork  http://<host>:9988/artwork/<N>
 
 URI scheme: POST /artwork/<N>  (N in 1..4)  -> writes <project>/cache/artwork_<N>.jpg
+Heartbeat probe: POST /heartbeat -> stamps parent().store('connHeartbeat')
+and returns 200 (no disk write). Used by the connection watchdog in
+oscin_events_callbacks; djay's artwork-request reply is hijacked as a
+liveness round-trip until dumpAll lands in TestFlight.
 Anything else returns 404. WebSocket callbacks are inert.
 
 Empty-body quirk: djay sometimes POSTs a 0-byte body when a deck is
@@ -20,6 +24,7 @@ from typing import Any, Dict
 
 VALID_TURNTABLES = {'1', '2', '3', '4'}
 BLACK_JPEG = 'assets/black.jpg'
+HEARTBEAT_URI = '/heartbeat'
 
 
 def _cache_dir() -> Path:
@@ -43,6 +48,13 @@ def onHTTPRequest(dat: 'webserverDAT', request: Dict[str, Any],
     if method != 'POST':
         response['statusCode'] = 405
         response['statusReason'] = 'Method Not Allowed'
+        response['data'] = ''
+        return response
+
+    if uri == HEARTBEAT_URI:
+        parent().store('connHeartbeat', absTime.seconds)
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
         response['data'] = ''
         return response
 

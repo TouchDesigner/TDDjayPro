@@ -40,6 +40,19 @@ _ARTWORK_PORT = 9988
 # tools/regen_black_jpg or a constantTOP+save round-trip.
 _BLACK_JPEG = 'assets/black.jpg'
 
+# Connection watchdog. Hijacks djay's artwork-request round-trip as a
+# liveness probe: send /djay/request/turntable<N>/artwork pointing at
+# webserver1's /heartbeat URL; djay POSTs back (empty body when no art);
+# webserver1_callbacks stamps parent().store('connHeartbeat'). The tick
+# reads that timestamp and writes parent().par.Status. Inbound /djay/*
+# on onReceiveOSC also refreshes the timestamp, so an actively-broadcasting
+# djay keeps Status=Active even between probes. Replace once dumpAll
+# lands — that'll be the proper handshake.
+_HEARTBEAT_PROBE_TT = '1'
+_HEARTBEAT_URI = '/heartbeat'
+_HEARTBEAT_INTERVAL_S = 3.0
+_HEARTBEAT_TIMEOUT_S = 8.0
+
 
 # Last seen value per OSC address. Backed by op.store on /djayPro so the
 # cache survives script reloads (this textDAT is externalized — every save
@@ -217,9 +230,54 @@ def _clear_artwork(turntable: str):
         })
 
 
+# region connection watchdog
+
+def _set_status(value: str) -> None:
+    par = parent().par.Status
+    if par.eval() != value:
+        par.val = value
+
+
+def _send_heartbeat_probe() -> None:
+    url = f'http://{_ARTWORK_HOST}:{_ARTWORK_PORT}{_HEARTBEAT_URI}'
+    parent().op('oscout1').sendOSC(
+        f'/djay/request/turntable{_HEARTBEAT_PROBE_TT}/artwork',
+        [url],
+    )
+
+
+def _watchdog_tick(gen: int) -> None:
+    djay = parent()
+    # Bail if a script reload bumped the generation — the new chain owns it.
+    if djay.fetch('connWatchdogGen', None) != gen:
+        return
+    last = djay.fetch('connHeartbeat', None)
+    fresh = last is not None and (absTime.seconds - last) <= _HEARTBEAT_TIMEOUT_S
+    _set_status('Active' if fresh else 'Disconnected')
+    _send_heartbeat_probe()
+    run('args[0](args[1])', _watchdog_tick, gen,
+        delayMilliSeconds=int(_HEARTBEAT_INTERVAL_S * 1000))
+
+
+def _start_watchdog() -> None:
+    djay = parent()
+    gen = (djay.fetch('connWatchdogGen', 0) or 0) + 1
+    djay.store('connWatchdogGen', gen)
+    _set_status('Disconnected')
+    run('args[0](args[1])', _watchdog_tick, gen, delayMilliSeconds=0)
+
+
+_start_watchdog()
+
+# endregion
+
+
 def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
                  byteData: bytes, timeStamp: float, address: str,
                  args: List[Any], peer: Peer):
+    if address.startswith('/djay/'):
+        parent().store('connHeartbeat', absTime.seconds)
+
     if _handle_artwork_available(address, args):
         return
 

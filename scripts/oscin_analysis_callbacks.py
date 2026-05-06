@@ -54,6 +54,10 @@ def _bucket(address: str) -> str:
 def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
                  byteData: bytes, timeStamp: float, address: str,
                  args: List[Any], peer: Peer):
+    # parent().par.Logging gates all file writes — bail before bucket parsing
+    # since this fires on every OSC message (incl. per-frame barPhase, ~240/s).
+    if not parent().par.Logging.eval():
+        return
     bucket = _bucket(address)
     path = os.path.join(LOG_DIR, 'djay_osc.{}.log'.format(bucket))
     now = time.time()
