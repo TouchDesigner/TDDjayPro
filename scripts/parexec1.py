@@ -54,8 +54,8 @@ def onPulse(par: Par):
 				os.remove(path)
 				removed += 1
 			except OSError as e:
-				debug(f'parexec1: failed to remove {path}: {e}')
-		debug(f'parexec1: cleared {removed} log file(s) from {logs_dir}')
+				pass  # debug(f'parexec1: failed to remove {path}: {e}')
+		# debug(f'parexec1: cleared {removed} log file(s) from {logs_dir}')
 
 def onExpressionChange(par: Par, val: str, prev: str):
 	"""

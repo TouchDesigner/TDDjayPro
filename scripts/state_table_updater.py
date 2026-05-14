@@ -8,28 +8,28 @@ state booleans in our taxonomy.
 
 
 def _set_cell(turntable: str, row: str, val):
-    parent.Djay.op('state_table')[row, turntable] = '1' if val else '0'
+	parent.Djay.op('state_table')[row, turntable] = '1' if val else '0'
 
 
 def onValueChange(channel, sampleIndex, val, prev):
-    parts = channel.name.split('/')
-    if len(parts) < 4 or not parts[1].startswith('turntable'):
-        return
-    tt = parts[1].replace('turntable', '')
-    if parts[2] == 'playback' and parts[3] == 'playing':
-        _set_cell(tt, 'playing', val)
-    elif parts[2] == 'song' and parts[3] == 'loaded':
-        _set_cell(tt, 'loaded', val)
+	parts = channel.name.split('/')
+	if len(parts) < 4 or not parts[1].startswith('turntable'):
+		return
+	tt = parts[1].replace('turntable', '')
+	if parts[2] == 'playback' and parts[3] == 'playing':
+		_set_cell(tt, 'playing', val)
+	elif parts[2] == 'song' and parts[3] == 'loaded':
+		_set_cell(tt, 'loaded', val)
 
 
 def onOffToOn(channel, sampleIndex, val, prev):
-    pass
+	pass
 
 def whileOn(channel, sampleIndex, val, prev):
-    pass
+	pass
 
 def onOnToOff(channel, sampleIndex, val, prev):
-    pass
+	pass
 
 def whileOff(channel, sampleIndex, val, prev):
-    pass
+	pass

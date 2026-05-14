@@ -20,46 +20,52 @@ from typing import List, Any
 
 # String-bearing addresses — not in the numeric float tables.
 _STRING_PATTERNS = [
-    'djay/turntable*/song/title',
-    'djay/turntable*/song/artist',
-    'djay/turntable*/song/album',
-    'djay/turntable*/song/genre',
-    'djay/turntable*/fx/*/type',
+	'djay/turntable*/song/title',
+	'djay/turntable*/song/artist',
+	'djay/turntable*/song/album',
+	'djay/turntable*/song/genre',
+	'djay/turntable*/fx/*/type',
 ]
 
 
 def _known_patterns():
-    pats = list(_STRING_PATTERNS)
-    for table_name in ('channels_turntable', 'channels_mixer'):
-        t = op(table_name)
-        if t is not None:
-            pats.extend(c.val for c in t.col(0)[1:])
-    return pats
+	pats = list(_STRING_PATTERNS)
+	for table_name in ('channels_turntable', 'channels_mixer'):
+		t = op(table_name)
+		if t is not None:
+			pats.extend(c.val for c in t.col(0)[1:])
+	return pats
 
 
 def _is_known(address: str) -> bool:
-    addr = address.lstrip('/')
-    return any(fnmatch.fnmatchcase(addr, p) for p in _known_patterns())
+	addr = address.lstrip('/')
+	return any(fnmatch.fnmatchcase(addr, p) for p in _known_patterns())
 
 
 def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
-                 byteData: bytes, timeStamp: float, address: str,
-                 args: List[Any], peer: Peer):
-    if _is_known(address):
-        return
+				 byteData: bytes, timeStamp: float, address: str,
+				 args: List[Any], peer: Peer):
+	# Liveness stamp. oscin_unknown's scope is `*` so every inbound message
+	# from djay lands here — this is the single chokepoint for the connection
+	# watchdog in oscin_events_callbacks._watchdog_tick. Passive: read-only
+	# from djay's side, no outbound to avoid the v4 artwork-probe leak.
+	parent.Djay.store('connHeartbeat', absTime.seconds)
 
-    table = parent.Djay.op('unknown_addresses')
-    if table is None:
-        return
+	if _is_known(address):
+		return
 
-    addr_clean = address.lstrip('/')
-    args_repr = repr(list(args))
+	table = parent.Djay.op('unknown_addresses')
+	if table is None:
+		return
 
-    existing = table.findCell(addr_clean, cols=[0])
-    if existing:
-        row = existing.row
-        count = int(table[row, 'count'].val) + 1
-        table[row, 'count'] = str(count)
-        table[row, 'last_args'] = args_repr
-    else:
-        table.appendRow([addr_clean, '1', args_repr])
+	addr_clean = address.lstrip('/')
+	args_repr = repr(list(args))
+
+	existing = table.findCell(addr_clean, cols=[0])
+	if existing:
+		row = existing.row
+		count = int(table[row, 'count'].val) + 1
+		table[row, 'count'] = str(count)
+		table[row, 'last_args'] = args_repr
+	else:
+		table.appendRow([addr_clean, '1', args_repr])

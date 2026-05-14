@@ -1,15 +1,11 @@
-"""
+﻿"""
 webserver1 dispatcher.
 
 Receives djay Pro v3 album-art HTTP POSTs and writes JPEG bytes to disk.
 djay POSTs the artwork as the request body when given a URL via OSC:
   /djay/request/turntable<N>/artwork  http://<host>:9988/artwork/<N>
 
-URI scheme: POST /artwork/<N>  (N in 1..4)  -> writes <project>/cache/artwork_<N>.jpg
-Heartbeat probe: POST /heartbeat -> stamps parent().store('connHeartbeat')
-and returns 200 (no disk write). Used by the connection watchdog in
-oscin_events_callbacks; djay's artwork-request reply is hijacked as a
-liveness round-trip until dumpAll lands in TestFlight.
+URI scheme: POST /artwork/<N>  (N in 1..4)	-> writes <project>/cache/artwork_<N>.jpg
 Anything else returns 404. WebSocket callbacks are inert.
 
 Empty-body quirk: djay sometimes POSTs a 0-byte body when a deck is
@@ -24,115 +20,108 @@ from typing import Any, Dict
 
 VALID_TURNTABLES = {'1', '2', '3', '4'}
 BLACK_JPEG = 'assets/black.jpg'
-HEARTBEAT_URI = '/heartbeat'
 
 
 def _cache_dir() -> Path:
-    d = Path(project.folder) / 'cache'
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+	d = Path(project.folder) / 'cache'
+	d.mkdir(parents=True, exist_ok=True)
+	return d
 
 
 def _parse_artwork_uri(uri: str) -> str | None:
-    parts = uri.strip('/').split('/')
-    if len(parts) != 2 or parts[0] != 'artwork' or parts[1] not in VALID_TURNTABLES:
-        return None
-    return parts[1]
+	parts = uri.strip('/').split('/')
+	if len(parts) != 2 or parts[0] != 'artwork' or parts[1] not in VALID_TURNTABLES:
+		return None
+	return parts[1]
 
 
 def onHTTPRequest(dat: 'webserverDAT', request: Dict[str, Any],
-                  response: Dict[str, Any]) -> Dict[str, Any]:
-    method = request.get('method', '')
-    uri = request.get('uri', '')
+				  response: Dict[str, Any]) -> Dict[str, Any]:
+	method = request.get('method', '')
+	uri = request.get('uri', '')
 
-    if method != 'POST':
-        response['statusCode'] = 405
-        response['statusReason'] = 'Method Not Allowed'
-        response['data'] = ''
-        return response
+	if method != 'POST':
+		response['statusCode'] = 405
+		response['statusReason'] = 'Method Not Allowed'
+		response['data'] = ''
+		return response
 
-    if uri == HEARTBEAT_URI:
-        parent().store('connHeartbeat', absTime.seconds)
-        response['statusCode'] = 200
-        response['statusReason'] = 'OK'
-        response['data'] = ''
-        return response
+	n = _parse_artwork_uri(uri)
+	if n is None:
+		response['statusCode'] = 404
+		response['statusReason'] = 'Not Found'
+		response['data'] = ''
+		return response
 
-    n = _parse_artwork_uri(uri)
-    if n is None:
-        response['statusCode'] = 404
-        response['statusReason'] = 'Not Found'
-        response['data'] = ''
-        return response
+	body = request.get('data', b'')
+	if isinstance(body, str):
+		body = body.encode('latin-1')
 
-    body = request.get('data', b'')
-    if isinstance(body, str):
-        body = body.encode('latin-1')
+	out = _cache_dir() / f'artwork_{n}.jpg'
+	cleared = False
+	if len(body) == 0:
+		# djay POSTed empty — stamp with the black asset instead of writing
+		# a 0-byte file (moviefileinTOP can't decode that).
+		src = Path(project.folder) / BLACK_JPEG
+		if src.exists():
+			shutil.copyfile(src, out)
+			cleared = True
+			# debug(f'webserver1: empty POST tt{n} -> stamped black')
+		else:
+			# debug(f'webserver1: empty POST tt{n} but {BLACK_JPEG} missing; skipping write')
+			pass
+	else:
+		out.write_bytes(body)
+		# debug(f'webserver1: wrote artwork tt{n} ({len(body)}B) -> {out}')
 
-    out = _cache_dir() / f'artwork_{n}.jpg'
-    cleared = False
-    if len(body) == 0:
-        # djay POSTed empty — stamp with the black asset instead of writing
-        # a 0-byte file (moviefileinTOP can't decode that).
-        src = Path(project.folder) / BLACK_JPEG
-        if src.exists():
-            shutil.copyfile(src, out)
-            cleared = True
-            debug(f'webserver1: empty POST tt{n} -> stamped black')
-        else:
-            debug(f'webserver1: empty POST tt{n} but {BLACK_JPEG} missing; skipping write')
-    else:
-        out.write_bytes(body)
-        debug(f'webserver1: wrote artwork tt{n} ({len(body)}B) -> {out}')
+	mfi = parent.Djay.op(f'artwork_{n}')
+	if mfi is not None:
+		mfi.par.reloadpulse.pulse()
 
-    mfi = parent.Djay.op(f'artwork_{n}')
-    if mfi is not None:
-        mfi.par.reloadpulse.pulse()
+	target = parent.Djay
+	if target is not None and hasattr(target, 'DoCallback'):
+		callback = 'onArtworkCleared' if cleared else 'onArtworkReady'
+		info = {'turntable': n, 'path': str(out)}
+		if not cleared:
+			info['bytes'] = len(body)
+		target.DoCallback(callback, info)
 
-    target = parent.Djay
-    if target is not None and hasattr(target, 'DoCallback'):
-        callback = 'onArtworkCleared' if cleared else 'onArtworkReady'
-        info = {'turntable': n, 'path': str(out)}
-        if not cleared:
-            info['bytes'] = len(body)
-        target.DoCallback(callback, info)
-
-    response['statusCode'] = 200
-    response['statusReason'] = 'OK'
-    response['data'] = ''
-    return response
+	response['statusCode'] = 200
+	response['statusReason'] = 'OK'
+	response['data'] = ''
+	return response
 
 
 def onWebSocketOpen(dat: 'webserverDAT', client: str, uri: str):
-    return
+	return
 
 
 def onWebSocketClose(dat: 'webserverDAT', client: str):
-    return
+	return
 
 
 def onWebSocketReceiveText(dat: 'webserverDAT', client: str, data: str):
-    return
+	return
 
 
 def onWebSocketReceiveBinary(dat: 'webserverDAT', client: str, data: bytes):
-    return
+	return
 
 
 def onWebSocketReceivePing(dat: 'webserverDAT', client: str, data: bytes):
-    dat.webSocketSendPong(client, data=data)
-    return
+	dat.webSocketSendPong(client, data=data)
+	return
 
 
 def onWebSocketReceivePong(dat: 'webserverDAT', client: str, data: bytes):
-    return
+	return
 
 
 def onServerStart(dat: 'webserverDAT'):
-    debug(f'webserver1: started on port {dat.par.port.eval()}')
-    return
+	# debug(f'webserver1: started on port {dat.par.port.eval()}')
+	return
 
 
 def onServerStop(dat: 'webserverDAT'):
-    debug('webserver1: stopped')
-    return
+	# debug('webserver1: stopped')
+	return
