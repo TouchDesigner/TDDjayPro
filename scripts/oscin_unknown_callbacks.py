@@ -48,7 +48,7 @@ def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
     if _is_known(address):
         return
 
-    table = op('/djayPro/unknown_addresses')
+    table = parent.Djay.op('unknown_addresses')
     if table is None:
         return
 

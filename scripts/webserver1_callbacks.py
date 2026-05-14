@@ -85,11 +85,11 @@ def onHTTPRequest(dat: 'webserverDAT', request: Dict[str, Any],
         out.write_bytes(body)
         debug(f'webserver1: wrote artwork tt{n} ({len(body)}B) -> {out}')
 
-    mfi = op(f'/djayPro/artwork_{n}')
+    mfi = parent.Djay.op(f'artwork_{n}')
     if mfi is not None:
         mfi.par.reloadpulse.pulse()
 
-    target = op('/djayPro')
+    target = parent.Djay
     if target is not None and hasattr(target, 'DoCallback'):
         callback = 'onArtworkCleared' if cleared else 'onArtworkReady'
         info = {'turntable': n, 'path': str(out)}

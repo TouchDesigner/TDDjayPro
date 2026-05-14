@@ -1,4 +1,4 @@
-"""
+﻿"""
 oscin_metadata dispatcher.
 
 Populates /djayPro/metadata_table (per-turntable wide table of song info +
@@ -12,7 +12,7 @@ value per slot; when djay Pro adds a state-dump capability, the response
 will populate this cache the same way per-event updates do.
 
 Addresses handled:
-  /djay/turntable<N>/song/{title,artist,album,genre,key,duration}
+  /djay/turntable<N>/song/{title,artist,album,genre,key,duration,bpm}
   /djay/turntable<N>/fx/<slot>/type
 
 Callbacks:
@@ -22,12 +22,12 @@ Callbacks:
 from typing import List, Any
 
 
-SONG_FIELDS = {'title', 'artist', 'album', 'genre', 'key', 'duration'}
+SONG_FIELDS = {'title', 'artist', 'album', 'genre', 'key', 'duration', 'bpm'}
 
 
 def _fx_types_cache() -> dict:
     """Get-or-init the shared {turntable: {slot: type_str}} cache on /djayPro."""
-    djay = op('/djayPro')
+    djay = parent.Djay
     cache = djay.fetch('fxTypes', None)
     if cache is None:
         cache = {}
@@ -47,8 +47,8 @@ def onReceiveOSC(dat: oscinDAT, rowIndex: int, message: str,
     turntable = parts[1].replace('turntable', '')
     cat = parts[2]
     value = args[0]
-    table = op('/djayPro/metadata_table')
-    target = op('/djayPro')
+    table = parent.Djay.op('metadata_table')
+    target = parent.Djay
 
     if cat == 'song' and parts[3] in SONG_FIELDS:
         table[parts[3], turntable] = str(value)

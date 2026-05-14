@@ -8,7 +8,7 @@ state booleans in our taxonomy.
 
 
 def _set_cell(turntable: str, row: str, val):
-    op('/djayPro/state_table')[row, turntable] = '1' if val else '0'
+    parent.Djay.op('state_table')[row, turntable] = '1' if val else '0'
 
 
 def onValueChange(channel, sampleIndex, val, prev):
