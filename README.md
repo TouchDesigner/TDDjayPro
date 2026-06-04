@@ -222,3 +222,7 @@ A few things djay Pro doesn't expose over OSC today (verified empirically — se
 | Dump request | `/djay/request/dumpAll` | Inbound OSC trigger that asks djay to re-broadcast its full current state. Coming in a future build. |
 
 For a running list of djay Pro emission quirks discovered through testing, see [QUIRKS.md](QUIRKS.md).
+
+## License
+
+Shared Use License — see [LICENSE](LICENSE).
